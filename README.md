@@ -83,5 +83,5 @@ Program 31745[0x03F0]
 ```
 
 ## Trimming tutorial
-1. `ffplay -v quiet -vf "drawtext=fontsize=32:text='\''%{pts} %{pict_type}'\''" in.ts`
+1. `ffplay -v quiet -vf "drawtext=fontsize=32:text='\''%{pts} %{pict_type}'\''" input.ts`
 2. `./tscut.py cut -t 188 --start A --end B input.ts output.ts` where [A, B)
