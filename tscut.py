@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """TS editor"""
 
-import sys
-import struct
 import argparse
-
+import struct
 
 # CHUNK_SIZE = 10000
 TS_PACKET_SIZE = 188
@@ -46,7 +44,7 @@ def print_binaries(buffer, offset=0):
 
 
 def get_ts_packet(packet, packet_size):
-    return packet[packet_size - TS_PACKET_SIZE:]
+    return packet[packet_size - TS_PACKET_SIZE :]
 
 
 def get_sync_byte(ts_packet):
@@ -81,7 +79,7 @@ def get_continuity_counter(ts_packet):
     return ts_packet[3] & 0b00001111
 
 
-class AdaptationField():
+class AdaptationField:
     """Adaptation Field"""
 
     def __init__(self, field):
@@ -107,8 +105,9 @@ class AdaptationField():
                 self.pcr_ext = (field[6] & 0b00000001) << 8 | field[7]
                 offset += 6
             if self.opcr_flag == 1:
-                self.opcr_base = struct.unpack('>I', field[2 + offset:6 + offset]
-                                               )[0] << 1 | field[6 + offset] & 0b10000000
+                self.opcr_base = (
+                    struct.unpack('>I', field[2 + offset : 6 + offset])[0] << 1 | field[6 + offset] & 0b10000000
+                )
                 # Reserved
                 self.opcr_ext = (field[6 + offset] & 0b00000001) << 8 | field[7 + offset]
                 offset += 6
@@ -132,7 +131,7 @@ def get_payload(ts_packet):
     else:
         payload_offset = 0
     if adaptation_field_control in (0b01, 0b11):
-        payload = ts_packet[4 + payload_offset:]
+        payload = ts_packet[4 + payload_offset :]
     else:
         payload = None
 
@@ -140,7 +139,6 @@ def get_payload(ts_packet):
 
 
 class Section:
-
     def __init__(self):
         self.buffer = []
         self.section = None
@@ -155,7 +153,7 @@ class Section:
                 self.buffer += payload[:pointer_field]
                 self.section = self.buffer
 
-            self.buffer = payload[1 + pointer_field:]
+            self.buffer = payload[1 + pointer_field :]
         else:
             self.buffer += payload
 
@@ -176,7 +174,7 @@ class Psi:
         self.section_number = section[6]
         self.last_section_number = section[7]
         # Some bytes
-        self.crc_32 = struct.unpack('>I', section[self.section_length - 1:self.section_length + 3])[0]
+        self.crc_32 = struct.unpack('>I', section[self.section_length - 1 : self.section_length + 3])[0]
 
 
 class Pat(Psi):
@@ -191,10 +189,10 @@ class Pat(Psi):
         self.pids = [[] for _ in range(num_programs)]
         for i in range(num_programs):
             i_4 = i * 4
-            self.program_numbers[i] = struct.unpack('>H', section[8 + i_4:10 + i_4])[0]
+            self.program_numbers[i] = struct.unpack('>H', section[8 + i_4 : 10 + i_4])[0]
             # reserved
             # network_pid if program_numbers[i] == 0, program_map_pid otherwise
-            self.pids[i] = struct.unpack('>H', section[10 + i_4:12 + i_4])[0] & 0b00011111_11111111
+            self.pids[i] = struct.unpack('>H', section[10 + i_4 : 12 + i_4])[0] & 0b00011111_11111111
 
 
 class Pmt(Psi):
@@ -213,7 +211,7 @@ class Pmt(Psi):
         self.descriptor = []
         while pos < 12 + self.program_info_length:
             length = 2 + section[pos + 1]
-            self.descriptor += section[pos:pos + length]
+            self.descriptor += section[pos : pos + length]
             pos += length
 
         self.stream_types = []
@@ -224,15 +222,15 @@ class Pmt(Psi):
         while pos < self.section_length - 1:
             self.stream_types += [section[pos]]
             # reserved
-            self.elementary_pids += [struct.unpack('>H', section[pos + 1:pos + 3])[0] & 0b00011111_11111111]
+            self.elementary_pids += [struct.unpack('>H', section[pos + 1 : pos + 3])[0] & 0b00011111_11111111]
             # reserved
-            self.es_info_length += [struct.unpack('>H', section[pos + 3:pos + 5])[0] & 0b00001111_11111111]
+            self.es_info_length += [struct.unpack('>H', section[pos + 3 : pos + 5])[0] & 0b00001111_11111111]
             pos += 5
             pos_2 = pos
             self.stream_descriptors.append([])
             while pos_2 < pos + self.es_info_length[i]:
                 length = 2 + section[pos_2 + 1]
-                self.stream_descriptors[i] += section[pos_2:pos_2 + length]
+                self.stream_descriptors[i] += section[pos_2 : pos_2 + length]
                 pos_2 += length
             pos = pos_2
             i += 1
@@ -248,14 +246,16 @@ class Pes:
         self.pts_dts_flags = None
         self.pts = None
         self.dts = None
-        if self.stream_id not in (STREAM_ID_PROGRAM_STREAM_MAP,
-                                  STREAM_ID_PADDING_STREAM,
-                                  STREAM_ID_PRIVATE_STREAM_2,
-                                  STREAM_ID_ECM_STREAM,
-                                  STREAM_ID_EMM_STREAM,
-                                  STREAM_ID_PROGRAM_STREAM_DIRECTORY,
-                                  STREAM_ID_DSMCC_STREAM,
-                                  STREAM_ID_TYPE_E_STREAM):
+        if self.stream_id not in (
+            STREAM_ID_PROGRAM_STREAM_MAP,
+            STREAM_ID_PADDING_STREAM,
+            STREAM_ID_PRIVATE_STREAM_2,
+            STREAM_ID_ECM_STREAM,
+            STREAM_ID_EMM_STREAM,
+            STREAM_ID_PROGRAM_STREAM_DIRECTORY,
+            STREAM_ID_DSMCC_STREAM,
+            STREAM_ID_TYPE_E_STREAM,
+        ):
             # TODO
             self.pts_dts_flags = (pes_payload[7] & 0b11000000) >> 6
             # TODO
@@ -381,7 +381,9 @@ def frames(args):
                 pmt_section.update_section(ts_packet)
                 if pmt_section.section:
                     pmt = Pmt(pmt_section.section)
-                    video_pid = pmt.elementary_pids[pmt.stream_types.index(0x02)]  # Only the first video stream is used
+                    video_pid = pmt.elementary_pids[
+                        pmt.stream_types.index(0x02)
+                    ]  # Only the first video stream is used
                     break
 
         tsi.seek(0)
@@ -420,7 +422,9 @@ def cut(args):
                 pmt_section.update_section(ts_packet)
                 if pmt_section.section:
                     pmt = Pmt(pmt_section.section)
-                    video_pid = pmt.elementary_pids[pmt.stream_types.index(0x02)]  # Only the first video stream is used
+                    video_pid = pmt.elementary_pids[
+                        pmt.stream_types.index(0x02)
+                    ]  # Only the first video stream is used
                     break
 
         tsi.seek(0)
@@ -449,54 +453,54 @@ def main():
     subparsers = parser.add_subparsers(required=True, help='subcommands')
 
     # command "packets"
-    parser_packets = subparsers.add_parser('packets', aliases=['pkt'],
-                                           help='show packet info')
-    parser_packets.add_argument('infile', metavar='input',
-                                help='input file')
-    parser_packets.add_argument('-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188,
-                                help='TS packet size')
+    parser_packets = subparsers.add_parser('packets', aliases=['pkt'], help='show packet info')
+    parser_packets.add_argument('infile', metavar='input', help='input file')
+    parser_packets.add_argument(
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+    )
     parser_packets.set_defaults(func=packets)
 
     # command "pid"
-    parser_pid = subparsers.add_parser('pid',
-                                       help='show pid info')
-    parser_pid.add_argument('infile', metavar='input',
-                            help='input file')
-    parser_pid.add_argument('-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188,
-                            help='TS packet size')
+    parser_pid = subparsers.add_parser('pid', help='show pid info')
+    parser_pid.add_argument('infile', metavar='input', help='input file')
+    parser_pid.add_argument(
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+    )
     parser_pid.set_defaults(func=pid)
 
     # command "programs"
-    parser_programs = subparsers.add_parser('programs', aliases=['prg'],
-                                            help='show program info')
-    parser_programs.add_argument('infile', metavar='input',
-                                 help='input file')
-    parser_programs.add_argument('-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188,
-                                 help='TS packet size')
+    parser_programs = subparsers.add_parser('programs', aliases=['prg'], help='show program info')
+    parser_programs.add_argument('infile', metavar='input', help='input file')
+    parser_programs.add_argument(
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+    )
     parser_programs.set_defaults(func=programs)
 
     # command "frames"
-    parser_frames = subparsers.add_parser('frames', aliases=['frm'],
-                                          help='show frame info')
-    parser_frames.add_argument('infile', metavar='input',
-                               help='input file')
-    parser_frames.add_argument('-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188,
-                               help='TS packet size')
+    parser_frames = subparsers.add_parser('frames', aliases=['frm'], help='show frame info')
+    parser_frames.add_argument('infile', metavar='input', help='input file')
+    parser_frames.add_argument(
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+    )
     parser_frames.set_defaults(func=frames)
 
     # command "cut"
-    parser_cut = subparsers.add_parser('cut',
-                                       help='trim a ts file')
-    parser_cut.add_argument('infile', metavar='input',  # nargs='+',
-                            help='input file')
-    parser_cut.add_argument('outfile', metavar='output',  # nargs='*',
-                            help='output file')
-    parser_cut.add_argument('-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188,
-                            help='TS packet size')
-    parser_cut.add_argument('-s', '--start', type=float, default=0,
-                            help='start time [s]')
-    parser_cut.add_argument('-e', '--end', type=float, default=60*60*24,
-                            help='end time [s]')
+    parser_cut = subparsers.add_parser('cut', help='trim a ts file')
+    parser_cut.add_argument(
+        'infile',
+        metavar='input',  # nargs='+',
+        help='input file',
+    )
+    parser_cut.add_argument(
+        'outfile',
+        metavar='output',  # nargs='*',
+        help='output file',
+    )
+    parser_cut.add_argument(
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+    )
+    parser_cut.add_argument('-s', '--start', type=float, default=0, help='start time [s]')
+    parser_cut.add_argument('-e', '--end', type=float, default=60 * 60 * 24, help='end time [s]')
     parser_cut.set_defaults(func=cut)
 
     args = parser.parse_args()
@@ -506,16 +510,21 @@ def main():
 def main_old():
     """Main routine"""
     parser = argparse.ArgumentParser(description='Process MPEG-TS files.')
-    parser.add_argument('infile', metavar='input',  # nargs='+',
-                        help='input file')
-    parser.add_argument('outfile', metavar='output',  # nargs='*',
-                        help='output file')
-    parser.add_argument('-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188,
-                        help='TS packet size')
-    parser.add_argument('-s', '--start', type=float, default=0,
-                        help='start time [s]')
-    parser.add_argument('-e', '--end', type=float, default=60*60*24,
-                        help='end time [s]')
+    parser.add_argument(
+        'infile',
+        metavar='input',  # nargs='+',
+        help='input file',
+    )
+    parser.add_argument(
+        'outfile',
+        metavar='output',  # nargs='*',
+        help='output file',
+    )
+    parser.add_argument(
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+    )
+    parser.add_argument('-s', '--start', type=float, default=0, help='start time [s]')
+    parser.add_argument('-e', '--end', type=float, default=60 * 60 * 24, help='end time [s]')
     args = parser.parse_args()
 
     # buffer_size = args.packet_size * CHUNK_SIZE
@@ -536,7 +545,7 @@ def main_old():
             # buffer[buffer_size - args.packet_size:] = packet
 
             # if hoge != 0: print(struct.unpack('>I', packet[:4])[0] - hoge)
-            ts_packet = packet[args.packet_size - TS_PACKET_SIZE:]
+            ts_packet = packet[args.packet_size - TS_PACKET_SIZE :]
 
             # Transport Packet
             sync_byte = ts_packet[0]
@@ -554,7 +563,7 @@ def main_old():
                 af = None
                 payload_offset = 0
             if adaptation_field_control in (0b01, 0b11):
-                payload = ts_packet[4 + payload_offset:]
+                payload = ts_packet[4 + payload_offset :]
             else:
                 payload = None
 
@@ -579,7 +588,7 @@ def main_old():
                         pat = Pat(pat_section)
                         program_1_pid = pat.pids[1]
 
-                    pat_section = payload[1 + pointer_field:]
+                    pat_section = payload[1 + pointer_field :]
                     # pat_packet = {packet_idx, packet}
                 else:
                     pat_section += payload
@@ -594,7 +603,7 @@ def main_old():
                         video_pid = pmt.elementary_pids[pmt.stream_types.index(0x02)]
                         audio_pid = pmt.elementary_pids[pmt.stream_types.index(0x0F)]
 
-                    pmt_section = payload[1 + pointer_field:]
+                    pmt_section = payload[1 + pointer_field :]
                 else:
                     pmt_section += payload
             elif pid == video_pid:
@@ -606,7 +615,7 @@ def main_old():
                         print(' PTS', end=' ')
                         print(video_pes.pts / 90000)
                         is_in = False
-                        if (video_pes.pts / 90000 - args.start) > -1001/1000/60:
+                        if (video_pes.pts / 90000 - args.start) > -1001 / 1000 / 60:
                             if video_pes.pts / 90000 < args.end:
                                 is_in = True
                     # if video_pes.dts:
