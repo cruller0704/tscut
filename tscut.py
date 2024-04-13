@@ -244,8 +244,10 @@ class Pes:
         self.stream_id = pes_payload[3]
         self.pes_packet_length = struct.unpack('>H', pes_payload[4:6])[0]
         self.pts_dts_flags = None
+        self.pes_header_data_length = None
         self.pts = None
         self.dts = None
+        self.pes_packet_data_byte = None
         if self.stream_id not in (
             STREAM_ID_PROGRAM_STREAM_MAP,
             STREAM_ID_PADDING_STREAM,
@@ -259,6 +261,7 @@ class Pes:
             # TODO
             self.pts_dts_flags = (pes_payload[7] & 0b11000000) >> 6
             # TODO
+            self.pes_header_data_length = pes_payload[8]
             if self.pts_dts_flags in (0b10, 0b11):
                 # '001x'
                 pts_32 = pes_payload[9] & 0b00001110
@@ -278,6 +281,37 @@ class Pes:
                     # marker_bit
                     self.dts = dts_32 << 29 | dts_29 << 14 | dts_14 >> 1
             # TODO
+            self.pes_packet_data_byte = pes_payload[9 + self.pes_header_data_length :]
+            # TODO
+
+
+class Stream:
+    def __init__(self):
+        self.buffer = []
+        self.stream = None
+
+    def update(self, ts_packet):
+        payload_unit_start_indicator = get_payload_unit_start_indicator(ts_packet)
+        payload = get_payload(ts_packet)
+        if payload_unit_start_indicator == 1:
+            self.stream = self.buffer
+
+            self.buffer = Pes(get_payload(ts_packet)).pes_packet_data_byte
+        else:
+            self.stream = None
+            self.buffer += payload
+
+
+def get_picture_coding_type(pes_stream):
+    picture_start_code = 0x00000100
+    picture_coding_types = {0b001: 'I', 0b010: 'P', 0b011: 'B'}
+
+    i = 0
+    while i + 3 < len(pes_stream):
+        if struct.unpack('>I', pes_stream[i : i + 4])[0] == picture_start_code:
+            return picture_coding_types[(pes_stream[i + 5] & 0b00111000) >> 3]
+        else:
+            i += 1
 
 
 def packets(args):
@@ -387,16 +421,69 @@ def frames(args):
                     break
 
         tsi.seek(0)
+        video_stream = Stream()
+        pts = None
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
 
             pid = get_pid(ts_packet)
             if pid == video_pid:
                 # Video PES
+                video_stream.update(ts_packet)
+                if video_stream.stream and pts:
+                    # print_binaries(video_stream.stream)
+                    picture_coding_type = get_picture_coding_type(video_stream.stream)
+                    print(f'{pts:.6f},{picture_coding_type}')
                 if get_payload_unit_start_indicator(ts_packet) == 1:
+                    # if video_pes:
+                    #     print_binaries(video_pes.pes_packet_data_byte)
+                    # pes_payload = get_payload(ts_packet)
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
-                        print(video_pes.pts / 90000)
+                        # print(video_pes.pts / 90000)
+                        pts = video_pes.pts / 90000
+                    # if video_pes.pes_packet_data_byte[3] != 0:
+                    #     flag = 1
+                    # else:
+                    #     flag = 0
+                    # print_binaries(get_payload(ts_packet))
+                # elif video_pes:
+                #     video_pes.pes_packet_data_byte += get_payload(ts_packet)
+                #     if True:
+                #         print_binaries(video_pes.pes_packet_data_byte)
+                # print_binaries(get_payload(ts_packet))
+
+                # else:
+                #     video_pes = Pes(get_payload(ts_packet))
+                #     if video_pes.pes_packet_data_byte:
+                #         if len(get_payload(ts_packet)) > 7:
+                #             i = 0
+                #             while len(video_pes.pes_packet_data_byte) >= i + 4:
+                #                 if struct.unpack('>I', video_pes.pes_packet_data_byte[i : i + 4])[0] == 256:
+                #                     print(video_pes.pes_packet_data_byte[i : i + 4])
+                #                 i += 4
+                # print_binaries(video_pes.pes_packet_data_byte)
+                # es_start_code_prefix = (
+                #     video_pes.pes_packet_data_byte[0] << 16
+                #     | video_pes.pes_packet_data_byte[1] << 8
+                #     | video_pes.pes_packet_data_byte[2]
+                # )
+                # es_stream_id = video_pes.pes_packet_data_byte[3]
+                # print(es_stream_id)
+
+            # intra = (self.pes_packet_data_byte[11] & 0b00000010) >> 1
+            # len_intra = 64 if intra else 0
+            # non_intra = self.pes_packet_data_byte[11 + len_intra] & 0b00000001
+            # len_non_intra = 64 if non_intra else 0
+            # print_binaries(self.pes_packet_data_byte)
+            # i = 4
+            # while struct.unpack('>I', self.pes_packet_data_byte[i : i + 4])[0] & 0xFFFFFF00 != 80:
+            #     print(self.pes_packet_data_byte[i : i + 4])
+            #     i += 4
+            #     if i + 4 > len(self.pes_packet_data_byte):
+            #         break
+            # print(hex(self.pes_packet_data_byte[11 + len_intra + len_non_intra]))
+            # print((struct.unpack('>H', self.pes_packet_data_byte[i + 4 : i + 6])[0] & 0b00111000) >> 3)
 
 
 def cut(args):
