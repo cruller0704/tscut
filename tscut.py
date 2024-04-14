@@ -138,24 +138,41 @@ def get_payload(ts_packet):
     return payload
 
 
-class Section:
+class Payload:
     def __init__(self):
-        self.buffer = []
+        self.__buffer = b''
+        self.__payload = None
+
+    def update(self, payload_unit_start_indicator, prev, next=None):
+        if payload_unit_start_indicator == 1:
+            if self.__buffer:
+                self.__buffer += prev
+                self.__payload = self.__buffer
+
+            self.__buffer = next
+        else:
+            self.__buffer += prev
+            self.__payload = None
+
+        return self.__payload
+
+
+class Section(Payload):
+    def __init__(self):
+        super().__init__()
         self.section = None
 
-    def update_section(self, ts_packet):
+    def update(self, ts_packet):
         payload_unit_start_indicator = get_payload_unit_start_indicator(ts_packet)
         payload = get_payload(ts_packet)
-        self.section = None
         if payload_unit_start_indicator == 1:
             pointer_field = payload[0]
-            if self.buffer:
-                self.buffer += payload[:pointer_field]
-                self.section = self.buffer
-
-            self.buffer = payload[1 + pointer_field :]
+            prev = payload[:pointer_field]
+            next = payload[1 + pointer_field :]
+            self.section = super().update(payload_unit_start_indicator, prev, next)
         else:
-            self.buffer += payload
+            prev = payload
+            self.section = super().update(payload_unit_start_indicator, prev)
 
 
 class Psi:
@@ -285,21 +302,21 @@ class Pes:
             # TODO
 
 
-class Stream:
+class Stream(Payload):
     def __init__(self):
-        self.buffer = []
+        super().__init__()
         self.stream = None
 
     def update(self, ts_packet):
         payload_unit_start_indicator = get_payload_unit_start_indicator(ts_packet)
         payload = get_payload(ts_packet)
         if payload_unit_start_indicator == 1:
-            self.stream = self.buffer
-
-            self.buffer = Pes(get_payload(ts_packet)).pes_packet_data_byte
+            prev = b''
+            next = Pes(get_payload(ts_packet)).pes_packet_data_byte
+            self.stream = super().update(payload_unit_start_indicator, prev, next)
         else:
-            self.stream = None
-            self.buffer += payload
+            prev = payload
+            self.stream = super().update(payload_unit_start_indicator, prev)
 
 
 def get_picture_coding_type(pes_stream):
@@ -363,7 +380,7 @@ def programs(args):
             pid = get_pid(ts_packet)
             if pid == 0x0000 and not pat_loaded:  # Only the first PAT is used now
                 # Program Association Table
-                pat_section.update_section(ts_packet)
+                pat_section.update(ts_packet)
                 if pat_section.section:
                     pat = Pat(pat_section.section)
                     program_map_pids = [p for i, p in enumerate(pat.pids) if pat.program_numbers[i] != 0]
@@ -376,7 +393,7 @@ def programs(args):
             elif pid in program_map_pids:
                 # Program Map Table
                 i = program_map_pids.index(pid)
-                pmt_section[i].update_section(ts_packet)
+                pmt_section[i].update(ts_packet)
                 if pmt_section[i].section:
                     pmt = Pmt(pmt_section[i].section)
                     # Append only new elements
@@ -406,13 +423,13 @@ def frames(args):
             pid = get_pid(ts_packet)
             if pid == 0x0000:
                 # Program Association Table
-                pat_section.update_section(ts_packet)
+                pat_section.update(ts_packet)
                 if pat_section.section:
                     pat = Pat(pat_section.section)
                     program_1_pid = pat.pids[1]  # Only the first program is used
             elif pid == program_1_pid:
                 # Program Map Table
-                pmt_section.update_section(ts_packet)
+                pmt_section.update(ts_packet)
                 if pmt_section.section:
                     pmt = Pmt(pmt_section.section)
                     video_pid = pmt.elementary_pids[
@@ -453,13 +470,13 @@ def cut(args):
             pid = get_pid(ts_packet)
             if pid == 0x0000:
                 # Program Association Table
-                pat_section.update_section(ts_packet)
+                pat_section.update(ts_packet)
                 if pat_section.section:
                     pat = Pat(pat_section.section)
                     program_1_pid = pat.pids[1]  # Only the first program is used
             elif pid == program_1_pid:
                 # Program Map Table
-                pmt_section.update_section(ts_packet)
+                pmt_section.update(ts_packet)
                 if pmt_section.section:
                     pmt = Pmt(pmt_section.section)
                     video_pid = pmt.elementary_pids[
