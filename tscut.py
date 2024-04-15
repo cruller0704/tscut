@@ -140,18 +140,18 @@ def get_payload(ts_packet):
 
 class Payload:
     def __init__(self):
-        self.__buffer = b''
+        self.buffer = b''
         self.__payload = None
 
     def update(self, payload_unit_start_indicator, prev, next=None):
         if payload_unit_start_indicator == 1:
-            if self.__buffer:
-                self.__buffer += prev
-                self.__payload = self.__buffer
+            if self.buffer:
+                self.buffer += prev
+                self.__payload = self.buffer
 
-            self.__buffer = next
+            self.buffer = next
         else:
-            self.__buffer += prev
+            self.buffer += prev
             self.__payload = None
 
         return self.__payload
@@ -459,6 +459,10 @@ def frames(args):
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
+        # Print the last frame
+        picture_coding_type = get_picture_coding_type(video_stream.buffer)
+        if pts:
+            print(f'{pts:.6f},{picture_coding_type}')
 
 
 def cut(args):
