@@ -257,49 +257,53 @@ class Pes:
     """Packetized Elementary Stream"""
 
     def __init__(self, pes_payload):
-        self.packet_start_code_prefix = pes_payload[0] << 16 | pes_payload[1] << 8 | pes_payload[2]
-        self.stream_id = pes_payload[3]
-        self.pes_packet_length = struct.unpack('>H', pes_payload[4:6])[0]
+        self.packet_start_code_prefix = None
+        self.stream_id = None
+        self.pes_packet_length = None
         self.pts_dts_flags = None
         self.pes_header_data_length = None
         self.pts = None
         self.dts = None
         self.pes_packet_data_byte = None
-        if self.stream_id not in (
-            STREAM_ID_PROGRAM_STREAM_MAP,
-            STREAM_ID_PADDING_STREAM,
-            STREAM_ID_PRIVATE_STREAM_2,
-            STREAM_ID_ECM_STREAM,
-            STREAM_ID_EMM_STREAM,
-            STREAM_ID_PROGRAM_STREAM_DIRECTORY,
-            STREAM_ID_DSMCC_STREAM,
-            STREAM_ID_TYPE_E_STREAM,
-        ):
-            # TODO
-            self.pts_dts_flags = (pes_payload[7] & 0b11000000) >> 6
-            # TODO
-            self.pes_header_data_length = pes_payload[8]
-            if self.pts_dts_flags in (0b10, 0b11):
-                # '001x'
-                pts_32 = pes_payload[9] & 0b00001110
-                # marker_bit
-                pts_29 = struct.unpack('>H', pes_payload[10:12])[0] & 0b11111111_11111110
-                # marker_bit
-                pts_14 = struct.unpack('>H', pes_payload[12:14])[0] & 0b11111111_11111110
-                # marker_bit
-                self.pts = pts_32 << 29 | pts_29 << 14 | pts_14 >> 1
-                if self.pts_dts_flags == 0b11:
-                    # '0001'
-                    dts_32 = pes_payload[14] & 0b00001110
+        if pes_payload[0] << 16 | pes_payload[1] << 8 | pes_payload[2] == 0x000001:
+            self.packet_start_code_prefix = pes_payload[0] << 16 | pes_payload[1] << 8 | pes_payload[2]
+            self.stream_id = pes_payload[3]
+            self.pes_packet_length = struct.unpack('>H', pes_payload[4:6])[0]
+            if self.stream_id not in (
+                STREAM_ID_PROGRAM_STREAM_MAP,
+                STREAM_ID_PADDING_STREAM,
+                STREAM_ID_PRIVATE_STREAM_2,
+                STREAM_ID_ECM_STREAM,
+                STREAM_ID_EMM_STREAM,
+                STREAM_ID_PROGRAM_STREAM_DIRECTORY,
+                STREAM_ID_DSMCC_STREAM,
+                STREAM_ID_TYPE_E_STREAM,
+            ):
+                # TODO
+                self.pts_dts_flags = (pes_payload[7] & 0b11000000) >> 6
+                # TODO
+                self.pes_header_data_length = pes_payload[8]
+                if self.pts_dts_flags in (0b10, 0b11):
+                    # '001x'
+                    pts_32 = pes_payload[9] & 0b00001110
                     # marker_bit
-                    dts_29 = struct.unpack('>H', pes_payload[15:17])[0] & 0b11111111_11111110
+                    pts_29 = struct.unpack('>H', pes_payload[10:12])[0] & 0b11111111_11111110
                     # marker_bit
-                    dts_14 = struct.unpack('>H', pes_payload[17:19])[0] & 0b11111111_11111110
+                    pts_14 = struct.unpack('>H', pes_payload[12:14])[0] & 0b11111111_11111110
                     # marker_bit
-                    self.dts = dts_32 << 29 | dts_29 << 14 | dts_14 >> 1
-            # TODO
-            self.pes_packet_data_byte = pes_payload[9 + self.pes_header_data_length :]
-            # TODO
+                    self.pts = pts_32 << 29 | pts_29 << 14 | pts_14 >> 1
+                    if self.pts_dts_flags == 0b11:
+                        # '0001'
+                        dts_32 = pes_payload[14] & 0b00001110
+                        # marker_bit
+                        dts_29 = struct.unpack('>H', pes_payload[15:17])[0] & 0b11111111_11111110
+                        # marker_bit
+                        dts_14 = struct.unpack('>H', pes_payload[17:19])[0] & 0b11111111_11111110
+                        # marker_bit
+                        self.dts = dts_32 << 29 | dts_29 << 14 | dts_14 >> 1
+                # TODO
+                self.pes_packet_data_byte = pes_payload[9 + self.pes_header_data_length :]
+                # TODO
 
 
 class Stream(Payload):
@@ -447,10 +451,11 @@ def frames(args):
             if pid == video_pid:
                 # Video PES
                 video_stream.update(ts_packet)
-                if video_stream.stream and pts:
+                if video_stream.stream:
                     picture_coding_type = get_picture_coding_type(video_stream.stream)
-                    print(f'{pts:.6f},{picture_coding_type}')
-                if get_payload_unit_start_indicator(ts_packet) == 1:
+                    if pts:
+                        print(f'{pts:.6f},{picture_coding_type}')
+
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
