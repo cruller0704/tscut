@@ -493,7 +493,8 @@ def cut(args):
                     break
 
         tsi.seek(0)
-        buffer = []
+        buffer = b''
+        video_stream = Stream()
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
 
@@ -502,14 +503,15 @@ def cut(args):
             pid = get_pid(ts_packet)
             if pid == video_pid:
                 # Video PES
-                if get_payload_unit_start_indicator(ts_packet) == 1:
+                video_stream.update(ts_packet)
+                if video_stream.stream:
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
                         if args.start <= pts and pts < args.end:
                             # Output packets from after the previous PES to the current PES to help other applications
-                            tso.write(bytes(buffer))
-                        buffer = []
+                            tso.write(buffer)
+                        buffer = b''
 
 
 def main():
