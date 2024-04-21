@@ -461,8 +461,7 @@ def frames(args):
                         pts = video_pes.pts / 90000
         # Print the last frame
         picture_coding_type = get_picture_coding_type(video_stream.buffer)
-        if pts:
-            print(f'{pts:.6f},{picture_coding_type}')
+        print(f'{pts:.6f},{picture_coding_type}')
 
 
 def cut(args):
