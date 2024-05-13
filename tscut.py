@@ -493,25 +493,43 @@ def cut(args):
                     break
 
         tsi.seek(0)
-        buffer = b''
+        packet_idx = 0
+        packet_idx_prev = None
         video_stream = Stream()
+        pts = None
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
-
-            buffer += packet
 
             pid = get_pid(ts_packet)
             if pid == video_pid:
                 # Video PES
                 video_stream.update(ts_packet)
                 if video_stream.stream:
+                    picture_coding_type = get_picture_coding_type(video_stream.stream)
+                    if pts:
+                        if pts < args.start and picture_coding_type == 'I':
+                            inpoint = packet_idx_prev
+                        if args.end < pts and picture_coding_type != 'B':
+                            outpoint = packet_idx_prev
+                            break
+
+                if get_payload_unit_start_indicator(ts_packet) == 1:
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
-                        if args.start <= pts and pts < args.end:
-                            # Output packets from after the previous PES to the current PES to help other applications
-                            tso.write(buffer)
-                        buffer = b''
+                        packet_idx_prev = packet_idx
+
+            packet_idx += 1
+
+        tsi.seek(0)
+        packet_idx = 0
+        for packet in iter(lambda: tsi.read(args.packet_size), b''):
+            if inpoint <= packet_idx:
+                if packet_idx < outpoint:
+                    tso.write(packet)
+                else:
+                    break
+            packet_idx += 1
 
 
 def main():
