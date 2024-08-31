@@ -498,6 +498,7 @@ def cut(args):
         packet_idx_prev = None
         video_stream = Stream()
         pts = None
+        inpoint = 0
         outpoint = None
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
@@ -525,15 +526,17 @@ def cut(args):
         if not outpoint:
             outpoint = packet_idx
 
-        tsi.seek(0)
-        packet_idx = 0
-        for packet in iter(lambda: tsi.read(args.packet_size), b''):
-            if inpoint <= packet_idx:
-                if packet_idx < outpoint:
-                    tso.write(packet)
-                else:
-                    break
-            packet_idx += 1
+        tsi.seek(inpoint * args.packet_size)
+        tso.write(tsi.read((outpoint - inpoint) * args.packet_size))
+        # tsi.seek(0)
+        # packet_idx = 0
+        # for packet in iter(lambda: tsi.read(args.packet_size), b''):
+        #     if inpoint <= packet_idx:
+        #         if packet_idx < outpoint:
+        #             tso.write(packet)
+        #         else:
+        #             break
+        #     packet_idx += 1
 
 
 def main():
