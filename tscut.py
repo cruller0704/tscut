@@ -498,6 +498,7 @@ def cut(args):
         packet_idx_prev = None
         video_stream = Stream()
         pts = None
+        outpoint = None
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
 
@@ -521,6 +522,8 @@ def cut(args):
                         packet_idx_prev = packet_idx
 
             packet_idx += 1
+        if not outpoint:
+            outpoint = packet_idx
 
         tsi.seek(0)
         packet_idx = 0
