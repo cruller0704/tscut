@@ -512,7 +512,8 @@ def cut(args):
                     if pts:
                         if pts < args.start and picture_coding_type == 'I':
                             inpoint = packet_idx_prev
-                        if args.end < pts and picture_coding_type != 'B':
+                        # if args.end < pts and picture_coding_type != 'B':  # until any P
+                        if args.end < pts and picture_coding_type == 'I':
                             outpoint = packet_idx_prev
                             break
 
@@ -528,15 +529,6 @@ def cut(args):
 
         tsi.seek(inpoint * args.packet_size)
         tso.write(tsi.read((outpoint - inpoint) * args.packet_size))
-        # tsi.seek(0)
-        # packet_idx = 0
-        # for packet in iter(lambda: tsi.read(args.packet_size), b''):
-        #     if inpoint <= packet_idx:
-        #         if packet_idx < outpoint:
-        #             tso.write(packet)
-        #         else:
-        #             break
-        #     packet_idx += 1
 
 
 def main():
