@@ -502,6 +502,7 @@ def cut(args):
         is_set = False
         inpoint = 0
         outpoint = None
+        is_out = False
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
 
@@ -512,16 +513,18 @@ def cut(args):
                 if video_stream.stream:
                     picture_coding_type = get_picture_coding_type(video_stream.stream)
                     if pts:
+                        if is_out:
+                            outpoint = packet_idx_prev
+                            break
+
                         if args.relative_time:
                             if not is_set and picture_coding_type == 'I':
                                 offset = pts
                                 is_set = True
                         if pts < args.start + offset and picture_coding_type == 'I':
                             inpoint = packet_idx_prev
-                        # if args.end + offset < pts and picture_coding_type != 'B':  # until I or any P
                         if args.end + offset < pts and picture_coding_type == 'I':
-                            outpoint = packet_idx_prev
-                            break
+                            is_out = True
 
                 if get_payload_unit_start_indicator(ts_packet) == 1:
                     video_pes = Pes(get_payload(ts_packet))
