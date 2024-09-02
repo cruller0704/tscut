@@ -498,6 +498,8 @@ def cut(args):
         packet_idx_prev = None
         video_stream = Stream()
         pts = None
+        offset = 0
+        is_set = False
         inpoint = 0
         outpoint = None
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
@@ -510,10 +512,14 @@ def cut(args):
                 if video_stream.stream:
                     picture_coding_type = get_picture_coding_type(video_stream.stream)
                     if pts:
-                        if pts < args.start and picture_coding_type == 'I':
+                        if args.relative_time:
+                            if not is_set and picture_coding_type == 'I':
+                                offset = pts
+                                is_set = True
+                        if pts < args.start + offset and picture_coding_type == 'I':
                             inpoint = packet_idx_prev
-                        # if args.end < pts and picture_coding_type != 'B':  # until any P
-                        if args.end < pts and picture_coding_type == 'I':
+                        # if args.end + offset < pts and picture_coding_type != 'B':  # until I or any P
+                        if args.end + offset < pts and picture_coding_type == 'I':
                             outpoint = packet_idx_prev
                             break
 
@@ -583,6 +589,7 @@ def main():
     parser_cut.add_argument(
         '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
     )
+    parser_cut.add_argument('-r', '--relative-time', action='store_true', help='use relative time instead of PTS')
     parser_cut.add_argument('-s', '--start', type=float, default=0, help='start time [s]')
     parser_cut.add_argument('-e', '--end', type=float, default=60 * 60 * 24, help='end time [s]')
     parser_cut.set_defaults(func=cut)
