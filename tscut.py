@@ -540,6 +540,149 @@ def cut(args):
         tso.write(tsi.read((outpoint - inpoint) * args.packet_size))
 
 
+def concat(args):
+    """Concatenate two ts files."""
+    with open(args.infile_1, 'rb') as tsi_1, open(args.infile_2, 'rb') as tsi_2, open(args.outfile, 'wb') as tso:
+        # Find the last pts of infile_1
+        # Determine the video pid
+        pat_section = Section()
+        program_1_pid = None
+        pmt_section = Section()
+        video_pid = None
+        for packet in iter(lambda: tsi_1.read(args.packet_size), b''):
+            ts_packet = get_ts_packet(packet, args.packet_size)
+
+            pid = get_pid(ts_packet)
+            if pid == 0x0000:
+                # Program Association Table
+                pat_section.update(ts_packet)
+                if pat_section.section:
+                    pat = Pat(pat_section.section)
+                    program_1_pid = pat.pids[1]  # Only the first program is used
+            elif pid == program_1_pid:
+                # Program Map Table
+                pmt_section.update(ts_packet)
+                if pmt_section.section:
+                    pmt = Pmt(pmt_section.section)
+                    video_pid = pmt.elementary_pids[
+                        pmt.stream_types.index(0x02)
+                    ]  # Only the first video stream is used
+                    break
+
+        tsi_1.seek(0)
+        # video_stream = Stream()
+        pts_last = None
+        for packet in iter(lambda: tsi_1.read(args.packet_size), b''):
+            ts_packet = get_ts_packet(packet, args.packet_size)
+
+            pid = get_pid(ts_packet)
+            if pid == video_pid:
+                # Video PES
+                # video_stream.update(ts_packet)
+                # if video_stream.stream:
+                #     picture_coding_type = get_picture_coding_type(video_stream.stream)
+                #     if pts:
+                #         print(f'{pts:.6f},{picture_coding_type}')
+
+                if get_payload_unit_start_indicator(ts_packet) == 1:
+                    video_pes = Pes(get_payload(ts_packet))
+                    if video_pes.pts:
+                        pts_last = video_pes.pts / 90000
+        # Print the last frame
+        # picture_coding_type = get_picture_coding_type(video_stream.buffer)
+        # print(f'{pts:.6f},{picture_coding_type}')
+        print(f'{pts_last:.6f}')
+
+        # Find the first pts of infile_2
+        # Determine the video pid
+        pat_section = Section()
+        program_1_pid = None
+        pmt_section = Section()
+        video_pid = None
+        for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
+            ts_packet = get_ts_packet(packet, args.packet_size)
+
+            pid = get_pid(ts_packet)
+            if pid == 0x0000:
+                # Program Association Table
+                pat_section.update(ts_packet)
+                if pat_section.section:
+                    pat = Pat(pat_section.section)
+                    program_1_pid = pat.pids[1]  # Only the first program is used
+            elif pid == program_1_pid:
+                # Program Map Table
+                pmt_section.update(ts_packet)
+                if pmt_section.section:
+                    pmt = Pmt(pmt_section.section)
+                    video_pid = pmt.elementary_pids[
+                        pmt.stream_types.index(0x02)
+                    ]  # Only the first video stream is used
+                    break
+
+        tsi_2.seek(0)
+        # video_stream = Stream()
+        pts_first = None
+        for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
+            ts_packet = get_ts_packet(packet, args.packet_size)
+
+            pid = get_pid(ts_packet)
+            if pid == video_pid:
+                # Video PES
+                # video_stream.update(ts_packet)
+                # if video_stream.stream:
+                #     picture_coding_type = get_picture_coding_type(video_stream.stream)
+                #     if pts:
+                #         print(f'{pts:.6f},{picture_coding_type}')
+
+                if get_payload_unit_start_indicator(ts_packet) == 1:
+                    video_pes = Pes(get_payload(ts_packet))
+                    if video_pes.pts:
+                        pts_first = video_pes.pts / 90000
+                        break
+        # Print the last frame
+        # picture_coding_type = get_picture_coding_type(video_stream.buffer)
+        # print(f'{pts:.6f},{picture_coding_type}')
+        print(f'{pts_first:.6f}')
+        print(f'{pts_last - pts_first:.6f}')
+
+        inpoint = 0
+        if 0 < pts_last - pts_first and pts_last - pts_first < 2:
+            tsi_2.seek(0)
+            packet_idx = 0
+            # video_stream = Stream()
+            pts = None
+            is_in = False
+            for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
+                ts_packet = get_ts_packet(packet, args.packet_size)
+
+                pid = get_pid(ts_packet)
+                if pid == video_pid:
+                    # Video PES
+                    # video_stream.update(ts_packet)
+                    # if video_stream.stream:
+                    #     picture_coding_type = get_picture_coding_type(video_stream.stream)
+                    #     if pts:
+                    #         print(f'{pts:.6f},{picture_coding_type}')
+
+                    if get_payload_unit_start_indicator(ts_packet) == 1:
+                        video_pes = Pes(get_payload(ts_packet))
+                        if video_pes.pts:
+                            pts = video_pes.pts / 90000
+                            if abs(pts - pts_last) < 0.000001:
+                                is_in = True
+                else:
+                    if is_in:
+                        inpoint = packet_idx
+                        break
+
+                packet_idx += 1
+
+        tsi_1.seek(0)
+        tso.write(tsi_1.read())
+        tsi_2.seek(inpoint * args.packet_size)
+        tso.write(tsi_2.read())
+
+
 def main():
     """Main routine"""
     parser = argparse.ArgumentParser(description='Process MPEG-TS files.')
@@ -596,6 +739,28 @@ def main():
     parser_cut.add_argument('-s', '--start', type=float, default=0, help='start time [s]')
     parser_cut.add_argument('-e', '--end', type=float, default=60 * 60 * 24, help='end time [s]')
     parser_cut.set_defaults(func=cut)
+
+    # command "concat"
+    parser_concat = subparsers.add_parser('concat', help='concatenate two ts files')
+    parser_concat.add_argument(
+        'infile_1',
+        metavar='input1',
+        help='input file 1',
+    )
+    parser_concat.add_argument(
+        'infile_2',
+        metavar='input2',
+        help='input file 2',
+    )
+    parser_concat.add_argument(
+        'outfile',
+        metavar='output',
+        help='output file',
+    )
+    parser_concat.add_argument(
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+    )
+    parser_concat.set_defaults(func=concat)
 
     args = parser.parse_args()
     args.func(args)
