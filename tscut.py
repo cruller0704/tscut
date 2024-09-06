@@ -686,7 +686,7 @@ def main():
     parser_packets = subparsers.add_parser('packets', aliases=['pkt'], help='show packet info')
     parser_packets.add_argument('infile', metavar='input', help='input file')
     parser_packets.add_argument(
-        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192], default=188, help='TS packet size'
     )
     parser_packets.set_defaults(func=packets)
 
@@ -694,7 +694,7 @@ def main():
     parser_pid = subparsers.add_parser('pid', help='show pid info')
     parser_pid.add_argument('infile', metavar='input', help='input file')
     parser_pid.add_argument(
-        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192], default=188, help='TS packet size'
     )
     parser_pid.set_defaults(func=pid)
 
@@ -702,7 +702,7 @@ def main():
     parser_programs = subparsers.add_parser('programs', aliases=['prg'], help='show program info')
     parser_programs.add_argument('infile', metavar='input', help='input file')
     parser_programs.add_argument(
-        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192], default=188, help='TS packet size'
     )
     parser_programs.set_defaults(func=programs)
 
@@ -710,7 +710,7 @@ def main():
     parser_frames = subparsers.add_parser('frames', aliases=['frm'], help='show frame info')
     parser_frames.add_argument('infile', metavar='input', help='input file')
     parser_frames.add_argument(
-        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192], default=188, help='TS packet size'
     )
     parser_frames.set_defaults(func=frames)
 
@@ -727,7 +727,7 @@ def main():
         help='output file',
     )
     parser_cut.add_argument(
-        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192], default=188, help='TS packet size'
     )
     parser_cut.add_argument('-r', '--relative-time', action='store_true', help='use relative time instead of PTS')
     parser_cut.add_argument('-s', '--start', type=float, default=0, help='start time [s]')
@@ -752,7 +752,7 @@ def main():
         help='output file',
     )
     parser_concat.add_argument(
-        '-t', '--type', dest='packet_size', type=int, choices=[188, 192, 204], default=188, help='TS packet size'
+        '-t', '--type', dest='packet_size', type=int, choices=[188, 192], default=188, help='TS packet size'
     )
     parser_concat.set_defaults(func=concat)
 
