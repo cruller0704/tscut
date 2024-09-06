@@ -316,7 +316,7 @@ class Stream(Payload):
         payload = get_payload(ts_packet)
         if payload_unit_start_indicator == 1:
             prev = b''
-            next = Pes(get_payload(ts_packet)).pes_packet_data_byte
+            next = Pes(payload).pes_packet_data_byte
             self.stream = super().update(payload_unit_start_indicator, prev, next)
         else:
             prev = payload
