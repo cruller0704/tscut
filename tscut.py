@@ -456,7 +456,6 @@ def frames(args):
                     if pts:
                         print(f'{pts:.6f},{picture_coding_type}')
 
-                if get_payload_unit_start_indicator(ts_packet) == 1:
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
@@ -522,7 +521,6 @@ def cut(args):
                             outpoint = packet_idx
                             break
 
-                if get_payload_unit_start_indicator(ts_packet) == 1:
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
