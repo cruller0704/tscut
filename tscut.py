@@ -535,110 +535,67 @@ def cut(args):
         tso.write(tsi.read((outpoint - inpoint) * args.packet_size))
 
 
+def get_video_pid(tsi, packet_size):
+    """Determine the video pid"""
+    tsi.seek(0)
+    pat_section = Section()
+    program_1_pid = None
+    pmt_section = Section()
+    video_pid = None
+    for packet in iter(lambda: tsi.read(packet_size), b''):
+        ts_packet = get_ts_packet(packet, packet_size)
+
+        pid = get_pid(ts_packet)
+        if pid == 0x0000:
+            # Program Association Table
+            pat_section.update(ts_packet)
+            if pat_section.section:
+                pat = Pat(pat_section.section)
+                program_1_pid = pat.pids[1]  # Only the first program is used
+        elif pid == program_1_pid:
+            # Program Map Table
+            pmt_section.update(ts_packet)
+            if pmt_section.section:
+                pmt = Pmt(pmt_section.section)
+                video_pid = pmt.elementary_pids[pmt.stream_types.index(0x02)]  # Only the first video stream is used
+                break
+
+    return video_pid
+
+
+def get_edge_pts(tsi, packet_size, isLast=False):
+    video_pid = get_video_pid(tsi, packet_size)
+
+    tsi.seek(0)
+    pts_edge = None
+    for packet in iter(lambda: tsi.read(packet_size), b''):
+        ts_packet = get_ts_packet(packet, packet_size)
+
+        pid = get_pid(ts_packet)
+        if pid == video_pid:
+            if get_payload_unit_start_indicator(ts_packet) == 1:
+                video_pes = Pes(get_payload(ts_packet))
+                if video_pes.pts:
+                    pts_edge = video_pes.pts / 90000
+                    if not isLast:
+                        break
+
+    return pts_edge
+
+
 def concat(args):
     """Concatenate two ts files."""
     with open(args.infile_1, 'rb') as tsi_1, open(args.infile_2, 'rb') as tsi_2, open(args.outfile, 'wb') as tso:
         # Find the last pts of infile_1
-        # Determine the video pid
-        pat_section = Section()
-        program_1_pid = None
-        pmt_section = Section()
-        video_pid = None
-        for packet in iter(lambda: tsi_1.read(args.packet_size), b''):
-            ts_packet = get_ts_packet(packet, args.packet_size)
-
-            pid = get_pid(ts_packet)
-            if pid == 0x0000:
-                # Program Association Table
-                pat_section.update(ts_packet)
-                if pat_section.section:
-                    pat = Pat(pat_section.section)
-                    program_1_pid = pat.pids[1]  # Only the first program is used
-            elif pid == program_1_pid:
-                # Program Map Table
-                pmt_section.update(ts_packet)
-                if pmt_section.section:
-                    pmt = Pmt(pmt_section.section)
-                    video_pid = pmt.elementary_pids[
-                        pmt.stream_types.index(0x02)
-                    ]  # Only the first video stream is used
-                    break
-
-        tsi_1.seek(0)
-        # video_stream = Stream()
-        pts_last = None
-        for packet in iter(lambda: tsi_1.read(args.packet_size), b''):
-            ts_packet = get_ts_packet(packet, args.packet_size)
-
-            pid = get_pid(ts_packet)
-            if pid == video_pid:
-                # Video PES
-                # video_stream.update(ts_packet)
-                # if video_stream.stream:
-                #     picture_coding_type = get_picture_coding_type(video_stream.stream)
-                #     if pts:
-                #         print(f'{pts:.6f},{picture_coding_type}')
-
-                if get_payload_unit_start_indicator(ts_packet) == 1:
-                    video_pes = Pes(get_payload(ts_packet))
-                    if video_pes.pts:
-                        pts_last = video_pes.pts / 90000
-        # Print the last frame
-        # picture_coding_type = get_picture_coding_type(video_stream.buffer)
-        # print(f'{pts:.6f},{picture_coding_type}')
+        pts_last = get_edge_pts(tsi_1, args.packet_size, True)
         print(f'{pts_last:.6f}')
 
         # Find the first pts of infile_2
-        # Determine the video pid
-        pat_section = Section()
-        program_1_pid = None
-        pmt_section = Section()
-        video_pid = None
-        for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
-            ts_packet = get_ts_packet(packet, args.packet_size)
-
-            pid = get_pid(ts_packet)
-            if pid == 0x0000:
-                # Program Association Table
-                pat_section.update(ts_packet)
-                if pat_section.section:
-                    pat = Pat(pat_section.section)
-                    program_1_pid = pat.pids[1]  # Only the first program is used
-            elif pid == program_1_pid:
-                # Program Map Table
-                pmt_section.update(ts_packet)
-                if pmt_section.section:
-                    pmt = Pmt(pmt_section.section)
-                    video_pid = pmt.elementary_pids[
-                        pmt.stream_types.index(0x02)
-                    ]  # Only the first video stream is used
-                    break
-
-        tsi_2.seek(0)
-        # video_stream = Stream()
-        pts_first = None
-        for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
-            ts_packet = get_ts_packet(packet, args.packet_size)
-
-            pid = get_pid(ts_packet)
-            if pid == video_pid:
-                # Video PES
-                # video_stream.update(ts_packet)
-                # if video_stream.stream:
-                #     picture_coding_type = get_picture_coding_type(video_stream.stream)
-                #     if pts:
-                #         print(f'{pts:.6f},{picture_coding_type}')
-
-                if get_payload_unit_start_indicator(ts_packet) == 1:
-                    video_pes = Pes(get_payload(ts_packet))
-                    if video_pes.pts:
-                        pts_first = video_pes.pts / 90000
-                        break
-        # Print the last frame
-        # picture_coding_type = get_picture_coding_type(video_stream.buffer)
-        # print(f'{pts:.6f},{picture_coding_type}')
+        pts_first = get_edge_pts(tsi_2, args.packet_size)
         print(f'{pts_first:.6f}')
         print(f'{pts_last - pts_first:.6f}')
+
+        video_pid = get_video_pid(tsi_2, args.packet_size)
 
         inpoint = 0
         if 0 < pts_last - pts_first and pts_last - pts_first < 2:
