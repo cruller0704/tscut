@@ -595,7 +595,7 @@ def concat(args):
         print(f'{pts_first:.6f}')
         print(f'{pts_last - pts_first:.6f}')
 
-        video_pid = get_video_pid(tsi_2, args.packet_size)
+        video_pid_2 = get_video_pid(tsi_2, args.packet_size)
 
         inpoint = 0
         if 0 < pts_last - pts_first and pts_last - pts_first < 2:
@@ -608,14 +608,7 @@ def concat(args):
                 ts_packet = get_ts_packet(packet, args.packet_size)
 
                 pid = get_pid(ts_packet)
-                if pid == video_pid:
-                    # Video PES
-                    # video_stream.update(ts_packet)
-                    # if video_stream.stream:
-                    #     picture_coding_type = get_picture_coding_type(video_stream.stream)
-                    #     if pts:
-                    #         print(f'{pts:.6f},{picture_coding_type}')
-
+                if pid == video_pid_2:
                     if get_payload_unit_start_indicator(ts_packet) == 1:
                         video_pes = Pes(get_payload(ts_packet))
                         if video_pes.pts:
