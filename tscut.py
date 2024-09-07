@@ -257,7 +257,9 @@ class Pes:
     """Packetized Elementary Stream"""
 
     def __init__(self, pes_payload):
-        self.packet_start_code_prefix = None
+        self.packet_start_code_prefix = (
+            pes_payload[0] << 16 | pes_payload[1] << 8 | pes_payload[2] if 0x000001 else None
+        )
         self.stream_id = None
         self.pes_packet_length = None
         self.pts_dts_flags = None
@@ -265,8 +267,7 @@ class Pes:
         self.pts = None
         self.dts = None
         self.pes_packet_data_byte = None
-        if pes_payload[0] << 16 | pes_payload[1] << 8 | pes_payload[2] == 0x000001:
-            self.packet_start_code_prefix = pes_payload[0] << 16 | pes_payload[1] << 8 | pes_payload[2]
+        if self.packet_start_code_prefix:
             self.stream_id = pes_payload[3]
             self.pes_packet_length = struct.unpack('>H', pes_payload[4:6])[0]
             if self.stream_id not in (
