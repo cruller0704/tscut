@@ -445,8 +445,12 @@ def frames(args):
         tsi.seek(0)
         video_stream = Stream()
         pts = None
+        # hoge = None
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
+            # if not hoge:
+            #     hoge = (struct.unpack('>I', packet[:4])[0] << 2) >> 2
+            # print((((struct.unpack('>I', packet[:4])[0] << 2) >> 2) - hoge) / 1356)
 
             pid = get_pid(ts_packet)
             if pid == video_pid:
@@ -460,6 +464,8 @@ def frames(args):
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
+                    # if video_pes.dts:
+                    #     print(video_pes.dts)
         # Print the last frame
         picture_coding_type = get_picture_coding_type(video_stream.buffer)
         print(f'{pts:.6f},{picture_coding_type}')
@@ -563,42 +569,54 @@ def get_video_pid(tsi, packet_size):
     return video_pid
 
 
-def get_edge_pts(tsi, packet_size, isLast=False):
+def get_edge_timestamp(tsi, packet_size, isLast=False):
     video_pid = get_video_pid(tsi, packet_size)
 
     tsi.seek(0)
+    pcr_edge = None
     pts_edge = None
+    dts_edge = None
     for packet in iter(lambda: tsi.read(packet_size), b''):
         ts_packet = get_ts_packet(packet, packet_size)
+
+        af = get_adaptation_field(ts_packet)
+        if af:
+            if af.pcr_base:
+                pcr_edge = af.pcr_base * 300 + af.pcr_ext if isLast or not pcr_edge else pcr_edge
 
         pid = get_pid(ts_packet)
         if pid == video_pid:
             if get_payload_unit_start_indicator(ts_packet) == 1:
                 video_pes = Pes(get_payload(ts_packet))
                 if video_pes.pts:
-                    pts_edge = video_pes.pts / 90000
-                    if not isLast:
-                        break
+                    pts_edge = video_pes.pts if isLast or not pts_edge else pts_edge
+                if video_pes.dts:
+                    dts_edge = video_pes.dts if isLast or not dts_edge else dts_edge
 
-    return pts_edge
+        if not isLast:
+            if pcr_edge and pts_edge and dts_edge:
+                break
+
+    return pcr_edge, pts_edge, dts_edge
 
 
 def concat(args):
     """Concatenate two ts files."""
     with open(args.infile_1, 'rb') as tsi_1, open(args.infile_2, 'rb') as tsi_2, open(args.outfile, 'wb') as tso:
         # Find the last pts of infile_1
-        pts_last = get_edge_pts(tsi_1, args.packet_size, True)
-        print(f'{pts_last:.6f}')
+        _, pts_last, _ = get_edge_timestamp(tsi_1, args.packet_size, True)
+        print(f'{pts_last/90000:.6f}')
 
         # Find the first pts of infile_2
-        pts_first = get_edge_pts(tsi_2, args.packet_size)
-        print(f'{pts_first:.6f}')
-        print(f'{pts_last - pts_first:.6f}')
+        _, pts_first, _ = get_edge_timestamp(tsi_2, args.packet_size)
+        print(f'{pts_first/90000:.6f}')
+        print(f'{(pts_last - pts_first)/90000:.6f}')
 
         video_pid_2 = get_video_pid(tsi_2, args.packet_size)
 
         inpoint = 0
-        if 0 < pts_last - pts_first and pts_last - pts_first < 2:
+        diff = (pts_last - pts_first) / 90000
+        if 0 < diff and diff < 2:
             tsi_2.seek(0)
             packet_idx = 0
             # video_stream = Stream()
@@ -612,8 +630,8 @@ def concat(args):
                     if get_payload_unit_start_indicator(ts_packet) == 1:
                         video_pes = Pes(get_payload(ts_packet))
                         if video_pes.pts:
-                            pts = video_pes.pts / 90000
-                            if abs(pts - pts_last) < 0.000001:
+                            pts = video_pes.pts
+                            if pts == pts_last:
                                 is_in = True
                 else:
                     if is_in:
