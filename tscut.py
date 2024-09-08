@@ -452,6 +452,12 @@ def frames(args):
             #     hoge = (struct.unpack('>I', packet[:4])[0] << 2) >> 2
             # print((((struct.unpack('>I', packet[:4])[0] << 2) >> 2) - hoge) / 1356)
 
+            # af = get_adaptation_field(ts_packet)
+            # if af:
+            #     if af.pcr_base:
+            #         pcr = af.pcr_base * 300 + af.pcr_ext
+            #         print((af.pcr_base * 300 + af.pcr_ext) / 27000000)
+
             pid = get_pid(ts_packet)
             if pid == video_pid:
                 # Video PES
@@ -604,13 +610,14 @@ def concat(args):
     """Concatenate two ts files."""
     with open(args.infile_1, 'rb') as tsi_1, open(args.infile_2, 'rb') as tsi_2, open(args.outfile, 'wb') as tso:
         # Find the last pts of infile_1
-        _, pts_last, _ = get_edge_timestamp(tsi_1, args.packet_size, True)
+        pcr_last, pts_last, dts_last = get_edge_timestamp(tsi_1, args.packet_size, True)
         print(f'{pts_last/90000:.6f}')
 
         # Find the first pts of infile_2
-        _, pts_first, _ = get_edge_timestamp(tsi_2, args.packet_size)
+        pcr_first, pts_first, dts_first = get_edge_timestamp(tsi_2, args.packet_size)
         print(f'{pts_first/90000:.6f}')
         print(f'{(pts_last - pts_first)/90000:.6f}')
+        # print(pcr_last / 27000000)
 
         video_pid_2 = get_video_pid(tsi_2, args.packet_size)
 
@@ -644,6 +651,37 @@ def concat(args):
         tso.write(tsi_1.read())
         tsi_2.seek(inpoint * args.packet_size)
         tso.write(tsi_2.read())
+        # else:
+        #     tsi_2.seek(0)
+        #     tso.write(tsi_2.read())
+        #     packet_idx = 0
+        #     # video_stream = Stream()
+        #     pts = None
+        #     is_in = False
+        #     for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
+        #         ts_packet = get_ts_packet(packet, args.packet_size)
+
+        #         # af = get_adaptation_field(ts_packet)
+        #         # if af:
+        #         #     if af.pcr_base:
+        #         #         pcr = af.pcr_base * 300 + af.pcr_ext
+        #         #         print(pcr / 27000000, end=' ')
+        #         #         pcr -= pcr_first - pcr_last
+        #         #         pcr_ext = pcr % 300
+        #         #         pcr_base = (pcr - pcr_ext) // 300
+        #         #         print((pcr_base * 300 + pcr_ext) / 27000000)
+
+        #         #         field = ts_packet[4:]
+        #         # self.pcr_base = struct.unpack('>I', field[2:6])[0] << 1 | field[6] & 0b10000000 >> 7
+        #         # # Reserved
+        #         # self.pcr_ext = (field[6] & 0b00000001) << 8 | field[7]
+
+        #         if get_payload_unit_start_indicator(ts_packet) == 1:
+        #             video_pes = Pes(get_payload(ts_packet))
+        #             if video_pes.pts:
+        #                 pts = video_pes.pts
+
+        #         packet_idx += 1
 
 
 def main():
