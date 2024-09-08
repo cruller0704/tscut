@@ -100,13 +100,13 @@ class AdaptationField:
             # TODO
             offset = 0
             if self.pcr_flag == 1:
-                self.pcr_base = struct.unpack('>I', field[2:6])[0] << 1 | field[6] & 0b10000000
+                self.pcr_base = struct.unpack('>I', field[2:6])[0] << 1 | field[6] & 0b10000000 >> 7
                 # Reserved
                 self.pcr_ext = (field[6] & 0b00000001) << 8 | field[7]
                 offset += 6
             if self.opcr_flag == 1:
                 self.opcr_base = (
-                    struct.unpack('>I', field[2 + offset : 6 + offset])[0] << 1 | field[6 + offset] & 0b10000000
+                    struct.unpack('>I', field[2 + offset : 6 + offset])[0] << 1 | field[6 + offset] & 0b10000000 >> 7
                 )
                 # Reserved
                 self.opcr_ext = (field[6 + offset] & 0b00000001) << 8 | field[7 + offset]
