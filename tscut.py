@@ -431,7 +431,9 @@ def frames(args):
                 pat_section.update(ts_packet)
                 if pat_section.section:
                     pat = Pat(pat_section.section)
-                    program_1_pid = pat.pids[1]  # Only the first program is used
+                    program_1_pid = (
+                        pat.pids[1] if pat.program_numbers[0] == 0 else pat.pids[0]
+                    )  # Only the first program is used
             elif pid == program_1_pid:
                 # Program Map Table
                 pmt_section.update(ts_packet)
@@ -494,7 +496,9 @@ def cut(args):
                 pat_section.update(ts_packet)
                 if pat_section.section:
                     pat = Pat(pat_section.section)
-                    program_1_pid = pat.pids[1]  # Only the first program is used
+                    program_1_pid = (
+                        pat.pids[1] if pat.program_numbers[0] == 0 else pat.pids[0]
+                    )  # Only the first program is used
             elif pid == program_1_pid:
                 # Program Map Table
                 pmt_section.update(ts_packet)
@@ -563,7 +567,9 @@ def get_video_pid(tsi, packet_size):
             pat_section.update(ts_packet)
             if pat_section.section:
                 pat = Pat(pat_section.section)
-                program_1_pid = pat.pids[1]  # Only the first program is used
+                program_1_pid = (
+                    pat.pids[1] if pat.program_numbers[0] == 0 else pat.pids[0]
+                )  # Only the first program is used
         elif pid == program_1_pid:
             # Program Map Table
             pmt_section.update(ts_packet)
