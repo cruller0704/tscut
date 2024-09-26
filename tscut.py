@@ -446,37 +446,52 @@ def frames(args):
 
         tsi.seek(0)
         video_stream = Stream()
+        pcr = None
         pts = None
+        dts = None
         # hoge = None
+        i_pcr = None
+        i_pts = None
+        i_dts = None
+        i = 0
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
             # if not hoge:
             #     hoge = (struct.unpack('>I', packet[:4])[0] << 2) >> 2
             # print((((struct.unpack('>I', packet[:4])[0] << 2) >> 2) - hoge) / 1356)
+            # ats = (struct.unpack('>I', packet[:4])[0] << 2) >> 2
+            # print(ats)
 
-            # af = get_adaptation_field(ts_packet)
-            # if af:
-            #     if af.pcr_base:
-            #         pcr = af.pcr_base * 300 + af.pcr_ext
-            #         print((af.pcr_base * 300 + af.pcr_ext) / 27000000)
+            af = get_adaptation_field(ts_packet)
+            if af:
+                if af.pcr_base:
+                    pcr = (af.pcr_base * 300 + af.pcr_ext) / 27000000
+                    i_pcr = i
+                    print(f'PCR,{pcr:.6f}\t{i_pcr}')
 
             pid = get_pid(ts_packet)
-            if pid == video_pid:
+            if True:
                 # Video PES
-                video_stream.update(ts_packet)
-                if video_stream.stream:
-                    picture_coding_type = get_picture_coding_type(video_stream.stream)
-                    if pts:
-                        print(f'{pts:.6f},{picture_coding_type}')
+                # video_stream.update(ts_packet)
+                # if video_stream.stream:
+                # picture_coding_type = get_picture_coding_type(video_stream.stream)
+                # if pts:
+                #     print(f'{pts:.6f},{picture_coding_type}')
 
+                if get_payload_unit_start_indicator(ts_packet) == 1:
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
-                    # if video_pes.dts:
-                    #     print(video_pes.dts)
+                        i_pts = i
+                        print(f'PTS,{pts:.6f}\t{i_pts} {pid}')
+                    if video_pes.dts:
+                        dts = video_pes.dts / 90000
+                        i_dts = i
+                        print(f'DTS,{dts:.6f}\t{i_dts} {pid}')
+            i += 1
         # Print the last frame
-        picture_coding_type = get_picture_coding_type(video_stream.buffer)
-        print(f'{pts:.6f},{picture_coding_type}')
+        # picture_coding_type = get_picture_coding_type(video_stream.buffer)
+        # print(f'{pts:.6f},{picture_coding_type}')
 
 
 def cut(args):
@@ -617,23 +632,22 @@ def concat(args):
     with open(args.infile_1, 'rb') as tsi_1, open(args.infile_2, 'rb') as tsi_2, open(args.outfile, 'wb') as tso:
         # Find the last pts of infile_1
         pcr_last, pts_last, dts_last = get_edge_timestamp(tsi_1, args.packet_size, True)
-        print(f'{pts_last/90000:.6f}')
+        # print(f'{dts_last/90000:.6f}')
 
         # Find the first pts of infile_2
         pcr_first, pts_first, dts_first = get_edge_timestamp(tsi_2, args.packet_size)
-        print(f'{pts_first/90000:.6f}')
-        print(f'{(pts_last - pts_first)/90000:.6f}')
-        # print(pcr_last / 27000000)
+        # print(f'{dts_first/90000:.6f}')
 
+        tsi_1.seek(0)
+        tso.write(tsi_1.read())
+
+        diff = dts_last - dts_first
+        # print(f'{diff/90000:.6f}')
         video_pid_2 = get_video_pid(tsi_2, args.packet_size)
-
         inpoint = 0
-        diff = (pts_last - pts_first) / 90000
-        if 0 < diff and diff < 2:
+        if 0 < diff and diff < 2 * 90000:
             tsi_2.seek(0)
             packet_idx = 0
-            # video_stream = Stream()
-            pts = None
             is_in = False
             for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
                 ts_packet = get_ts_packet(packet, args.packet_size)
@@ -641,9 +655,9 @@ def concat(args):
                 pid = get_pid(ts_packet)
                 if pid == video_pid_2:
                     if get_payload_unit_start_indicator(ts_packet) == 1:
-                        video_pes = Pes(get_payload(ts_packet))
-                        if video_pes.pts:
-                            pts = video_pes.pts
+                        pes = Pes(get_payload(ts_packet))
+                        if pes.pts:
+                            pts = pes.pts
                             if pts == pts_last:
                                 is_in = True
                 else:
@@ -653,41 +667,79 @@ def concat(args):
 
                 packet_idx += 1
 
-        tsi_1.seek(0)
-        tso.write(tsi_1.read())
-        tsi_2.seek(inpoint * args.packet_size)
-        tso.write(tsi_2.read())
-        # else:
-        #     tsi_2.seek(0)
-        #     tso.write(tsi_2.read())
-        #     packet_idx = 0
-        #     # video_stream = Stream()
-        #     pts = None
-        #     is_in = False
-        #     for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
-        #         ts_packet = get_ts_packet(packet, args.packet_size)
+            tsi_2.seek(inpoint * args.packet_size)
+            tso.write(tsi_2.read())
+        else:
+            gap = 3 * 3003  # 3 frames * 90000 Hz @ 29.97 fps
 
-        #         # af = get_adaptation_field(ts_packet)
-        #         # if af:
-        #         #     if af.pcr_base:
-        #         #         pcr = af.pcr_base * 300 + af.pcr_ext
-        #         #         print(pcr / 27000000, end=' ')
-        #         #         pcr -= pcr_first - pcr_last
-        #         #         pcr_ext = pcr % 300
-        #         #         pcr_base = (pcr - pcr_ext) // 300
-        #         #         print((pcr_base * 300 + pcr_ext) / 27000000)
+            tsi_2.seek(0)
+            for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
+                packet = bytearray(packet)
+                ts_packet = get_ts_packet(packet, args.packet_size)
 
-        #         #         field = ts_packet[4:]
-        #         # self.pcr_base = struct.unpack('>I', field[2:6])[0] << 1 | field[6] & 0b10000000 >> 7
-        #         # # Reserved
-        #         # self.pcr_ext = (field[6] & 0b00000001) << 8 | field[7]
+                af = get_adaptation_field(ts_packet)
+                if af:
+                    if af.pcr_base:
+                        # pcr = af.pcr_base * 300 + af.pcr_ext
+                        # pcr_new = pcr + (diff + gap) * 300
+                        # pcr_ext = pcr_new % 300
+                        # pcr_base = (pcr_new - pcr_ext) // 300
+                        pcr_base = af.pcr_base + diff + gap
+                        ts_packet[6] = (pcr_base >> 25) & 0b11111111
+                        ts_packet[7] = (pcr_base >> 17) & 0b11111111
+                        ts_packet[8] = (pcr_base >> 9) & 0b11111111
+                        ts_packet[9] = (pcr_base >> 1) & 0b11111111
+                        if pcr_base & 0b00000001:
+                            ts_packet[10] |= 0b10000000
+                        else:
+                            ts_packet[10] &= 0b01111111
+                        # if (pcr_ext >> 8) & 0b00000001:
+                        #     ts_packet[10] |= 0b00000001
+                        # else:
+                        #     ts_packet[10] &= 0b11111110
+                        # ts_packet[11] = pcr_ext & 0b11111111
 
-        #         if get_payload_unit_start_indicator(ts_packet) == 1:
-        #             video_pes = Pes(get_payload(ts_packet))
-        #             if video_pes.pts:
-        #                 pts = video_pes.pts
+                        # field = ts_packet[4:]
+                        # self.pcr_base = struct.unpack('>I', field[2:6])[0] << 1 | field[6] & 0b10000000 >> 7
+                        # # Reserved
+                        # self.pcr_ext = (field[6] & 0b00000001) << 8 | field[7]
 
-        #         packet_idx += 1
+                if get_payload_unit_start_indicator(ts_packet) == 1:
+                    pes = Pes(get_payload(ts_packet))
+                    if pes.pts:
+                        pts = pes.pts
+                        pts_new = pts + diff + gap
+                        adaptation_field_control = get_adaptation_field_control(ts_packet)
+                        if adaptation_field_control in (0b10, 0b11):
+                            payload_offset = ts_packet[4] + 1
+                        else:
+                            payload_offset = 0
+                        offset = 4 + payload_offset
+                        ts_packet[offset + 9] = ts_packet[offset + 9] & 0b11110001 | (pts_new >> 29) & 0b00001110
+                        ts_packet[offset + 10] = (pts_new >> 22) & 0b11111111
+                        ts_packet[offset + 11] = ts_packet[offset + 11] & 0b00000001 | (pts_new >> 14) & 0b11111110
+                        ts_packet[offset + 12] = (pts_new >> 7) & 0b11111111
+                        ts_packet[offset + 13] = ts_packet[offset + 13] & 0b00000001 | (pts_new << 1) & 0b11111110
+
+                        # # '001x'
+                        # pts_32 = pes_payload[9] & 0b00001110
+                        # # marker_bit
+                        # pts_29 = struct.unpack('>H', pes_payload[10:12])[0] & 0b11111111_11111110
+                        # # marker_bit
+                        # pts_14 = struct.unpack('>H', pes_payload[12:14])[0] & 0b11111111_11111110
+                        # # marker_bit
+                        # self.pts = pts_32 << 29 | pts_29 << 14 | pts_14 >> 1
+                    if pes.dts:
+                        dts = pes.dts
+                        dts_new = dts + diff + gap
+                        ts_packet[offset + 14] = ts_packet[offset + 14] & 0b11110001 | (dts_new >> 29) & 0b00001110
+                        ts_packet[offset + 15] = (dts_new >> 22) & 0b11111111
+                        ts_packet[offset + 16] = ts_packet[offset + 16] & 0b00000001 | (dts_new >> 14) & 0b11111110
+                        ts_packet[offset + 17] = (dts_new >> 7) & 0b11111111
+                        ts_packet[offset + 18] = ts_packet[offset + 18] & 0b00000001 | (dts_new << 1) & 0b11111110
+
+                packet[args.packet_size - TS_PACKET_SIZE :] = ts_packet
+                tso.write(packet)
 
 
 def main():
