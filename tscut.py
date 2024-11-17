@@ -446,52 +446,54 @@ def frames(args):
 
         tsi.seek(0)
         video_stream = Stream()
-        pcr = None
         pts = None
-        dts = None
         # hoge = None
-        i_pcr = None
-        i_pts = None
-        i_dts = None
-        i = 0
+        # i_pcr = None
+        # i_pts = None
+        # i_dts = None
+        # i = 0
         for packet in iter(lambda: tsi.read(args.packet_size), b''):
             ts_packet = get_ts_packet(packet, args.packet_size)
             # if not hoge:
             #     hoge = (struct.unpack('>I', packet[:4])[0] << 2) >> 2
             # print((((struct.unpack('>I', packet[:4])[0] << 2) >> 2) - hoge) / 1356)
             # ats = (struct.unpack('>I', packet[:4])[0] << 2) >> 2
-            # print(ats)
+            # print(ats / 27000000)
 
-            af = get_adaptation_field(ts_packet)
-            if af:
-                if af.pcr_base:
-                    pcr = (af.pcr_base * 300 + af.pcr_ext) / 27000000
-                    i_pcr = i
-                    print(f'PCR,{pcr:.6f}\t{i_pcr}')
+            # af = get_adaptation_field(ts_packet)
+            # if af:
+            #     if af.pcr_base:
+            #         pcr = (af.pcr_base * 300 + af.pcr_ext) / 27000000
+            #         i_pcr = i
+            #         print(f'PCR,{pcr:.6f}\t{i_pcr}')
 
             pid = get_pid(ts_packet)
-            if True:
+            if pid == video_pid:
                 # Video PES
-                # video_stream.update(ts_packet)
-                # if video_stream.stream:
-                # picture_coding_type = get_picture_coding_type(video_stream.stream)
-                # if pts:
-                #     print(f'{pts:.6f},{picture_coding_type}')
+                video_stream.update(ts_packet)
+                if video_stream.stream:
+                    picture_coding_type = get_picture_coding_type(video_stream.stream)
+                    if pts:
+                        print(f'{pts:.6f},{picture_coding_type}')
 
-                if get_payload_unit_start_indicator(ts_packet) == 1:
                     video_pes = Pes(get_payload(ts_packet))
                     if video_pes.pts:
                         pts = video_pes.pts / 90000
-                        i_pts = i
-                        print(f'PTS,{pts:.6f}\t{i_pts} {pid}')
-                    if video_pes.dts:
-                        dts = video_pes.dts / 90000
-                        i_dts = i
-                        print(f'DTS,{dts:.6f}\t{i_dts} {pid}')
-            i += 1
+
+            # if get_payload_unit_start_indicator(ts_packet) == 1:
+            #     video_pes = Pes(get_payload(ts_packet))
+            #     if video_pes.pts:
+            #         pts = video_pes.pts / 90000
+            #         i_pts = i
+            #         print(f'PTS,{pts:.6f}\t{i_pts} {pid}')
+            #     if video_pes.dts:
+            #         dts = video_pes.dts / 90000
+            #         i_dts = i
+            #         print(f'DTS,{dts:.6f}\t{i_dts} {pid}')
+            # i += 1
         # Print the last frame
-        # picture_coding_type = get_picture_coding_type(video_stream.buffer)
-        # print(f'{pts:.6f},{picture_coding_type}')
+        picture_coding_type = get_picture_coding_type(video_stream.buffer)
+        print(f'{pts:.6f},{picture_coding_type}')
 
 
 def cut(args):
@@ -675,6 +677,15 @@ def concat(args):
             tsi_2.seek(0)
             for packet in iter(lambda: tsi_2.read(args.packet_size), b''):
                 packet = bytearray(packet)
+
+                if args.packet_size == 192:
+                    ats = (struct.unpack('>I', packet[:4])[0] << 2) >> 2
+                    ats_new = ats + (diff + gap) * 300
+                    packet[0] = packet[0] & 0b11000000 | (ats_new >> 24) & 0b00111111
+                    packet[1] = (ats_new >> 16) & 0b11111111
+                    packet[2] = (ats_new >> 8) & 0b11111111
+                    packet[3] = ats_new & 0b11111111
+
                 ts_packet = get_ts_packet(packet, args.packet_size)
 
                 af = get_adaptation_field(ts_packet)
