@@ -1,9 +1,8 @@
 # tscut
-Python MPEG-TS cut tool.
+Python MPEG-TS editing tool.
 ## Supported formats
-- .ts (188 byte packet)
-- .m2ts (192 byte packet)
-- 204 byte packet, works i hope
+- .ts (188-byte packet)
+- .m2ts (192-byte packet)
 
 ## Usage
 ```
@@ -37,7 +36,7 @@ Python MPEG-TS cut tool.
 ...
 ```
 
-### Show a program tree
+### Show program tree
 ```
 % ./tscut.py prg -t 188 input.ts
 Program 31744[0x01F0]
@@ -63,25 +62,44 @@ Program 31745[0x03F0]
 ...
 ```
 
-### Show video pts
+### Show video pts w/ picture types
 ```
 % ./tscut.py frm -t 188 input.ts
-1993.2088777777778
-1993.2422444444444
-1993.375711111111
-1993.3089777777777
-1993.3423444444445
-1993.4758111111112
-1993.4090777777778
-1993.4424444444444
+1993.208878,B
+1993.242244,B
+1993.375711,P
+1993.308978,B
+1993.342344,B
+1993.475811,P
+1993.409078,B
+1993.442444,B
+1993.575911,P
+1993.509178,B
+1993.542544,B
+1993.676011,P
+1993.609278,B
+1993.642644,B
+1993.776111,I
+1993.709378,B
 ...
 ```
 
 ### Trim a TS file
 ```
-% ./tscut.py cut -t 188 --start 2000.115 --end 2100.015 input.ts output.ts
+./tscut.py cut -t 188 --start 2000.115 --end 2100.015 input.ts output.ts
 ```
+
+### Concatenate two ts files
+```
+./tscut.py concat -t 188 input1.ts input2.ts output.ts
+```
+
+If two files overlap and the overlap is less than 2 sec, they are concatenated seamlessly (works with BD recorder files).
 
 ## Trimming tutorial
 1. `ffplay -v quiet -vf "drawtext=fontsize=32:text='\''%{pts} %{pict_type}'\''" input.ts`
 2. `./tscut.py cut -t 188 --start A --end B input.ts output.ts` where [A, B)
+
+tscut.py trims ts files, ensuring the output includes [A, B) and both ends are terminated with I-frames.
+
+You can use the ```-r, --relative-time``` option to use any player since pts checking is not required.
